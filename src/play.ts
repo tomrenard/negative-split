@@ -12,7 +12,8 @@ const TEST_X = Number(params.get('x') ?? 1) // test runs only: multiplies the cl
 const FIELD = 100
 const FAST = 20 // ticks per real second
 const SLOW = 3
-const WAITING = 120 // before the player's start
+const COUNTDOWN_MS = 3000
+let countdownUntil = 0
 const VIEW_M = 240
 
 const css = getComputedStyle(document.documentElement)
@@ -100,15 +101,12 @@ function tick() {
 function frame(now: number) {
   const dt = Math.min(0.1, (now - last) / 1000) * TEST_X
   last = now
-  if (started && !paused && !done) {
-    const slow = race.t >= me.startT && tactical()
-    const target = race.t < me.startT ? WAITING : slow ? SLOW : FAST
-    tps += (target - tps) * Math.min(1, (dt / TEST_X) * 6) // ease speed changes over about 0.5 s
+  if (started && !paused && !done && now >= countdownUntil) {
+    const slow = tactical()
+    tps += ((slow ? SLOW : FAST) - tps) * Math.min(1, (dt / TEST_X) * 6) // ease speed changes over about 0.5 s
     acc += dt * tps
-    if (race.t >= me.startT) {
-      stats.playS += dt
-      if (slow) stats.slowS += dt
-    }
+    stats.playS += dt
+    if (slow) stats.slowS += dt
     while (acc >= 1 && !done) {
       acc--
       tick()
@@ -246,10 +244,14 @@ function draw() {
   const grade = gradeAt(race.course, me.x)
   text(`${Math.round(me.power)} W`, W - pad, hTop + 44, 32, C.ink, 'right', 700)
   text(`${(me.v * 3.6).toFixed(1)} km/h   ·   ${grade >= 0 ? '+' : ''}${(grade * 100).toFixed(1)}%`, W - pad, hTop + 72, 18, C.ink, 'right')
-  const speedLabel = race.t < me.startT ? `Start in ${me.startT - race.t} s` : paused ? 'PAUSED' : tactical() ? `${SLOW}x  slow-mo` : `${FAST}x`
+  const speedLabel = paused ? 'PAUSED' : tactical() ? `${SLOW}x  slow-mo` : `${FAST}x`
   text(speedLabel, W - pad, hTop + 100, 16, C.meta, 'right')
 
   const now = performance.now()
+  if (now < countdownUntil) {
+    text(String(Math.ceil((countdownUntil - now) / 1000)), W / 2, rTop + rH / 2 + 30, 96, C.accent, 'center', 700)
+    text('Pick your starting gear: W / S', W / 2, rTop + rH + 44, 20, C.meta, 'center')
+  }
   toasts = toasts.filter((t) => t.until > now)
   toasts.forEach((t, i) => text(t.text, W / 2, rTop + rH / 2 - 30 - i * 28, 24, t.color, 'center', 700))
 }
@@ -368,6 +370,9 @@ for (const b of document.querySelectorAll<HTMLButtonElement>('[data-input]'))
 
 document.getElementById('start')!.addEventListener('click', () => {
   document.getElementById('intro')!.hidden = true
+  // Skip the rolling start up to the player's slot, then count down with the field frozen.
+  while (race.t < me.startT) tick()
+  countdownUntil = performance.now() + COUNTDOWN_MS
   started = true
 })
 document.getElementById('again')!.addEventListener('click', () => location.reload())
