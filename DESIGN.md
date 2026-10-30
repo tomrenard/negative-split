@@ -119,9 +119,10 @@ Tells:
 
 ### Athletes and brands
 
-- Athletes and gear brands use real pro names with one letter changed, and stats modelled on the real athlete or product.
-- All athletes, teams and gear live in an editable JSON database, so names are easy to change.
-- Risk: near-real names still point at real people and brands. Fine while private. Before any public release, check licensing or switch to fictional names.
+- All athletes, teams and gear brands are fictional (data/athletes.json, data/gear.json). No real or near-real names, so the game and repo can be public.
+- Stats are rough estimates for game balance, set by profile (fish, diesel, hammer, closer, rookie).
+- The JSON files are editable, so players can mod their own rosters.
+- In game text, say "middle distance" (1.9 / 90 / 21.1 km), not "70.3", which is a trademark.
 
 ## Online
 

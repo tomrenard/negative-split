@@ -1,15 +1,15 @@
 // Rough 2D playable bike leg (build step 4). Measures decisions per minute of play.
-import { DEFAULT_PLAYER, crowd } from './field.ts'
+import { proField } from './roster.ts'
 import {
-  type Input, AID_EVERY_M, BONK_G, BOTTLE_G, COURSE_M, DISTRESS_S, GEAR_NAMES, GEL_G, PENALTY_S, REF_SIGHT_M,
-  STOMACH_OK_G, ZONE_LIMIT_S, ZONE_M, aidAt, createRace, estimateRun, gradeAt, hashRace, nearestAhead, onCourse,
+  type Input, AID_EVERY_M, BONK_G, BOTTLE_G, COURSE_M, DISTRESS_S, GEAR_NAMES, GEL_G, PRO, REF_SIGHT_M,
+  STOMACH_OK_G, aidAt, createRace, estimateRun, gradeAt, hashRace, nearestAhead, onCourse,
   runRace, step,
 } from './sim.ts'
 
 const params = new URLSearchParams(location.search)
 const SEED = Number(params.get('seed') ?? 20261030)
 const TEST_X = Number(params.get('x') ?? 1) // test runs only: multiplies the clock
-const FIELD = 100
+const ATHLETE = params.get('athlete') ?? 'holtvik'
 const FAST = 20 // ticks per real second
 const SLOW = 3
 const COUNTDOWN_MS = 3000
@@ -26,8 +26,9 @@ const C = {
 }
 const FONT = "'Barlow Condensed', Helvetica, sans-serif"
 
-const entries = () => crowd(DEFAULT_PLAYER, FIELD, SEED)
-const race = createRace(SEED, entries())
+const entries = () => proField(ATHLETE, SEED)
+const race = createRace(SEED, entries(), PRO)
+const FIELD = race.riders.length
 const me = race.riders[0]
 const log: Input[] = []
 let pending: Omit<Input, 't'>[] = []
@@ -64,7 +65,7 @@ function input(type: Input['type'], value?: number) {
 
 // Slow down only when a choice is due: entering a zone, its deadline, an aid station.
 const tactical = () =>
-  (me.zoneS > 0 && (me.zoneS <= 4 || me.zoneS >= ZONE_LIMIT_S - 7)) ||
+  (me.zoneS > 0 && (me.zoneS <= 4 || me.zoneS >= race.rules.passS - 7)) ||
   aidAt(me.x) > me.aidIdx ||
   (nextAid() - me.x < 100 && nextAid() - me.x > 0)
 
@@ -90,7 +91,7 @@ function tick() {
   if (me.zoneS === 1) stats.zoneEntries++
   if (!inAid && aidAt(me.x) > me.aidIdx) stats.aidWindows++
   if (me.zoneS === 10 && Math.abs(race.ref.x - me.x) < REF_SIGHT_M * 2) stats.refWarnings++
-  if (me.penalties > before.penalties) toast('Draft penalty: 5 min in the box', C.danger)
+  if (me.penalties > before.penalties) toast(`Draft penalty: ${race.rules.penaltyS / 60} min in the box`, C.danger)
   if (me.distressS === DISTRESS_S) { stats.distress++; toast('Stomach trouble: easy for 2 min', C.danger) }
   if (me.exhausted && !before.exhausted) { stats.exhausted++; toast('Out of matches', C.danger) }
   if (bonkKm < 0 && me.glycogen < BONK_G) { bonkKm = me.x / 1000; toast('Bonk', C.danger) }
@@ -195,13 +196,13 @@ function draw() {
       text(`AID ${a / AID_EVERY_M}`, rx(a), rTop - 8, 14, C.ink, 'center', 700)
     }
   const ahead = nearestAhead(race, me, -1)
-  const zoneOf = ahead && ahead.x - me.x < ZONE_M ? ahead : null
+  const zoneOf = ahead && ahead.x - me.x < race.rules.zoneM ? ahead : null
   for (const r of race.riders) {
     if (!onCourse(race, r) || Math.abs(r.x - me.x) > VIEW_M) continue
     const y = ry(r.lane)
     ctx.fillStyle = r === zoneOf ? 'rgba(255,90,0,0.18)' : 'rgba(20,20,20,0.05)'
     const x = lerp(prevX[r.id], r.x)
-    ctx.fillRect(rx(x - ZONE_M), y - laneH * 0.3, ZONE_M * m, laneH * 0.6)
+    ctx.fillRect(rx(x - race.rules.zoneM), y - laneH * 0.3, race.rules.zoneM * m, laneH * 0.6)
     ctx.fillStyle = r === me ? C.accent : C.ink
     ctx.fillRect(rx(x) - 2 * m, y - 5, 2 * m, 10)
   }
@@ -211,7 +212,7 @@ function draw() {
   if (me.penaltyS > 0) text(`PENALTY BOX  ${Math.ceil(me.penaltyS / 60)} min`, W / 2, rTop + rH / 2 + 10, 40, C.danger, 'center', 700)
   else if (me.zoneS > 0) {
     const refClose = Math.abs(race.ref.x - me.x) < REF_SIGHT_M * 2
-    text(`DRAFT ZONE ${me.zoneS} / ${ZONE_LIMIT_S} s${refClose ? '  ·  REF CLOSE' : ''}`, rx(meX), ry(me.lane) - laneH * 0.4, 22, refClose ? C.danger : C.accent, 'center', 700)
+    text(`DRAFT ZONE ${me.zoneS} / ${race.rules.passS} s${refClose ? '  ·  REF CLOSE' : ''}`, rx(meX), ry(me.lane) - laneH * 0.4, 22, refClose ? C.danger : C.accent, 'center', 700)
   }
   const aidAhead = nextAid() - me.x
   if (nextAid() < COURSE_M && aidAt(me.x) > me.aidIdx) text('AID STATION: 1 grab gel · 2 grab bottle', W / 2, rTop + rH + 44, 22, C.accent, 'center', 700)
@@ -265,7 +266,7 @@ function finish() {
   const totals = race.riders.map((r) => r.finishT - r.startT + estimateRun(r, r === me ? myFuel : (r.persona?.fuelGph ?? 60)).t)
   const run = estimateRun(me, myFuel)
   const place = 1 + totals.filter((t) => t < totals[0]).length
-  const replay = hashRace(runRace(SEED, entries(), log)) === hashRace(race)
+  const replay = hashRace(runRace(SEED, entries(), log, PRO)) === hashRace(race)
   const min = stats.playS / 60
 
   document.getElementById('debrief-title')!.textContent = `${place}th of ${FIELD}`
@@ -287,7 +288,7 @@ function finish() {
   else if (run.bonked) notes.push(`You bonked on the run: ${Math.round(me.glycogen)} g left at T2 was not enough.`)
   if (stats.distress) notes.push(`Stomach trouble ${stats.distress}x: you ate faster than your gut absorbs (about 50 g/h above Tempo).`)
   if (stats.exhausted) notes.push(`Out of matches ${stats.exhausted}x: each time you were forced to recover.`)
-  if (me.penalties) notes.push(`${me.penalties} draft penalty (${PENALTY_S / 60} min each).`)
+  if (me.penalties) notes.push(`${me.penalties} draft penalty (${race.rules.penaltyS / 60} min each).`)
   if (!notes.length) notes.push('Clean race: no bonk, no stomach trouble, no penalty.')
   document.getElementById('debrief-notes')!.innerHTML = notes.map((n) => `<p>${n}</p>`).join('')
   document.getElementById('debrief')!.hidden = false

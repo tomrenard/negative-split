@@ -12,9 +12,12 @@ export const SURGE = 4
 
 export const COURSE_M = 90_000
 export const AID_EVERY_M = 15_000
-export const ZONE_M = 12
-export const ZONE_LIMIT_S = 25
-export const PENALTY_S = 300
+// Draft rules differ for age groupers and pros (IRONMAN 2026: pro zone 20 m, 70.3 penalty 2 min).
+// ponytail: pro pass time not confirmed in the 2026 rules yet, 25 s until checked.
+export type Rules = { zoneM: number; passS: number; penaltyS: number }
+export const AGE_GROUP: Rules = { zoneM: 12, passS: 25, penaltyS: 300 }
+export const PRO: Rules = { zoneM: 20, passS: 25, penaltyS: 120 }
+const DRAFT_RANGE_M = 12 // physical slipstream, separate from the rule zone
 export const REF_SIGHT_M = 150
 export const GEL_G = 25
 export const BOTTLE_G = 40
@@ -47,6 +50,8 @@ export type Athlete = {
   cda: number
   gutGph: number
   glycogen: number // g
+  runPace?: number // threshold run pace, s/km
+  runEconomy?: number // shoes, multiplies run speed
 }
 
 // Scripted behaviour for rivals (and for the player in strategy sweeps).
@@ -95,6 +100,7 @@ export type Race = {
   course: Segment[]
   riders: Rider[]
   ref: { x: number; target: number }
+  rules: Rules
 }
 
 // mulberry32: integer-only, so identical everywhere.
@@ -132,9 +138,10 @@ export function speedFor(power: number, grade: number, mass: number, cda: number
   return Math.max(0, Math.min(MAX_V, v))
 }
 
-export function createRace(seed: number, entries: Entry[]): Race {
+export function createRace(seed: number, entries: Entry[], rules: Rules = AGE_GROUP): Race {
   return {
     t: 0,
+    rules,
     rngState: seed ^ 0x9e3779b9,
     course: makeCourse(seed),
     ref: { x: 0, target: 0 },
@@ -223,14 +230,27 @@ export function applyInput(race: Race, r: Rider, input: Omit<Input, 't' | 'rider
   }
 }
 
+// Pass or drop back when stuck in a zone. Pros (20 m zone) need Surge to pass in time.
+function zoneMove(race: Race, r: Rider, p: Persona, gear: number): number {
+  const ahead = nearestAhead(race, r, -1)
+  if (!ahead || ahead.x - r.x >= race.rules.zoneM || r.zoneS < 3) return gear
+  const pass = r.w > (p.aggression >= 0.5 ? 0.3 : 0.7) * r.athlete.wPrime
+  if (!pass || ahead.lane !== 0) return RECOVER // drop back out of the zone
+  r.lane = 1
+  return Math.max(gear, p.aggression > 0.8 || race.rules.zoneM > 12 ? SURGE : THRESHOLD)
+}
+
 function decide(race: Race, r: Rider, p: Persona) {
-  // Aid stations are checked every tick so a fast rider cannot skip the window.
+  // Aid stations and zones are checked every tick so a fast rider cannot skip them.
   const idx = aidAt(r.x)
   if (idx > r.aidIdx) {
     if (rand(race) >= p.grabMiss) applyInput(race, r, { type: 'grab', value: r.gels < 3 ? 0 : 1 })
     else r.aidIdx = idx
   }
-  if ((race.t + r.id) % 10 !== 0) return
+  if ((race.t + r.id) % 10 !== 0) {
+    if (r.zoneS >= 3) r.gear = zoneMove(race, r, p, r.gear)
+    return
+  }
 
   const a = r.athlete
   if (race.t - r.lastEatT >= (3600 * GEL_G) / p.fuelGph)
@@ -238,22 +258,15 @@ function decide(race: Race, r: Rider, p: Persona) {
 
   let gear = gradeAt(race.course, r.x) > 0.04 ? p.climbGear : p.plan
   if (r.w < 0.3 * a.wPrime) gear = Math.min(gear, ENDURANCE)
-
-  const ahead = nearestAhead(race, r, -1)
-  if (ahead && ahead.x - r.x < ZONE_M && r.zoneS >= 5) {
-    const pass = r.w > (p.aggression >= 0.5 ? 0.3 : 0.7) * a.wPrime
-    if (pass && ahead.lane === 0) {
-      r.lane = 1
-      gear = Math.max(gear, p.aggression > 0.8 ? SURGE : THRESHOLD)
-    } else gear = RECOVER // drop back out of the zone
-  } else if (r.lane === 1) {
+  const zoned = zoneMove(race, r, p, gear)
+  if (zoned === gear && r.lane === 1) {
     // Back to the right once the passed rider is clear behind and nobody is close ahead.
     let clear = true
     for (const o of race.riders)
-      if (o !== r && onCourse(race, o) && o.lane === 0 && o.x - r.x > -3 && o.x - r.x < ZONE_M) clear = false
+      if (o !== r && onCourse(race, o) && o.lane === 0 && o.x - r.x > -3 && o.x - r.x < race.rules.zoneM) clear = false
     if (clear) r.lane = 0
   }
-  r.gear = gear
+  r.gear = zoned
 }
 
 export const fade = (r: Rider) => 1 - (0.01 * Math.max(0, r.strain - STRAIN_FREE_KJ)) / STRAIN_KJ_PER_PCT
@@ -293,8 +306,8 @@ function move(race: Race, r: Rider) {
     return
   }
   const ahead = nearestAhead(race, r, r.lane)
-  const gap = ahead ? ahead.x - r.x : ZONE_M
-  const draft = gap < ZONE_M ? MAX_DRAFT * (1 - gap / ZONE_M) : 0
+  const gap = ahead ? ahead.x - r.x : DRAFT_RANGE_M
+  const draft = gap < DRAFT_RANGE_M ? MAX_DRAFT * (1 - gap / DRAFT_RANGE_M) : 0
   let x = r.x + speedFor(p, gradeAt(race.course, r.x), a.mass, a.cda * (1 - draft))
   if (ahead && x > ahead.x - MIN_GAP_M) x = Math.max(r.x, ahead.x - MIN_GAP_M) // blocked in this lane
   r.v = x - r.x
@@ -311,9 +324,9 @@ function checkZone(race: Race, r: Rider) {
     return
   }
   const ahead = nearestAhead(race, r, -1)
-  r.zoneS = ahead && ahead.x - r.x < ZONE_M ? r.zoneS + 1 : 0
-  if (r.zoneS > ZONE_LIMIT_S && Math.abs(race.ref.x - r.x) < REF_SIGHT_M) {
-    r.penaltyS = PENALTY_S
+  r.zoneS = ahead && ahead.x - r.x < race.rules.zoneM ? r.zoneS + 1 : 0
+  if (r.zoneS > race.rules.passS && Math.abs(race.ref.x - r.x) < REF_SIGHT_M) {
+    r.penaltyS = race.rules.penaltyS
     r.penalties++
     r.zoneS = 0
     r.lane = 0
@@ -339,8 +352,8 @@ export function step(race: Race, inputs: Input[] = []) {
   race.t++
 }
 
-export function runRace(seed: number, entries: Entry[], inputs: Input[] = [], maxT = 6 * 3600): Race {
-  const race = createRace(seed, entries)
+export function runRace(seed: number, entries: Entry[], inputs: Input[] = [], rules: Rules = AGE_GROUP, maxT = 6 * 3600): Race {
+  const race = createRace(seed, entries, rules)
   const sorted = [...inputs].sort((a, b) => a.t - b.t)
   let i = 0
   while (race.t < maxT && race.riders.some((r) => r.finishT < 0)) {
@@ -385,7 +398,8 @@ export function estimateRun(r: Rider, fuelGph: number): { t: number; bonked: boo
     let frac = g < BONK_G ? BONK_FRAC : 0.8
     if (g < BONK_G) bonked = true
     if (stomach > STOMACH_OK_G) frac *= 1 - STOMACH_COST * (stomach - STOMACH_OK_G)
-    const v = RUN_THRESHOLD_MS * (r.athlete.cp / 250) * frac * fade(r)
+    const threshold = r.athlete.runPace ? 1000 / r.athlete.runPace : RUN_THRESHOLD_MS * (r.athlete.cp / 250)
+    const v = threshold * (r.athlete.runEconomy ?? 1) * frac * fade(r)
     const kcal = (RUNNER_KG * v) / 1000 // running costs about 1 kcal/kg/km
     stomach += fuelGph / 3600
     const a = Math.min(stomach, absorb)

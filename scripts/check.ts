@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { DEFAULT_PLAYER, FIXTURE_INPUTS, PLAYER, field, fixtureHash } from '../src/field.ts'
 import {
-  type Entry, BONK_FRAC, BONK_G, GEAR_NAMES, RECOVER, SURGE, TEMPO,
+  type Entry, AGE_GROUP, BONK_FRAC, BONK_G, GEAR_NAMES, RECOVER, SURGE, TEMPO,
   createRace, runRace, speedFor, step,
 } from '../src/sim.ts'
 
@@ -46,11 +46,11 @@ assert.equal(speedFor(400, -0.2, 80, 0.25), 25, 'speed cap')
 
 // Gut: 4 gels at once is GI distress, 1 gel is fine.
 {
-  const one = runRace(1, [solo()], [{ t: 10, rider: 0, type: 'gel' }], 20).riders[0]
+  const one = runRace(1, [solo()], [{ t: 10, rider: 0, type: 'gel' }], AGE_GROUP, 20).riders[0]
   assert.equal(one.distressS, 0, 'one gel is fine')
-  const four = runRace(1, [solo()], [0, 1, 2, 3].map(() => ({ t: 10, rider: 0, type: 'gel' as const })), 20).riders[0]
+  const four = runRace(1, [solo()], [0, 1, 2, 3].map(() => ({ t: 10, rider: 0, type: 'gel' as const })), AGE_GROUP, 20).riders[0]
   assert.ok(four.distressS > 0 && four.power <= PLAYER.cp * 0.56, 'four gels cause distress')
-  const two = runRace(1, [solo()], [0, 1].map(() => ({ t: 10, rider: 0, type: 'gel' as const })), 20).riders[0]
+  const two = runRace(1, [solo()], [0, 1].map(() => ({ t: 10, rider: 0, type: 'gel' as const })), AGE_GROUP, 20).riders[0]
   assert.ok(two.distressS === 0 && two.power < PLAYER.cp * 0.8, 'a full stomach costs power')
 }
 
@@ -99,3 +99,17 @@ const banned = readFileSync(new URL('../src/sim.ts', import.meta.url), 'utf8').m
 assert.equal(banned, null, `banned in sim.ts: ${banned}`)
 
 console.log(`ok, fixture hash ${fixtureHash()}`)
+
+// Pro field: roster loads, gear applies, the 70.3 bike leg lands in a pro time range.
+{
+  const { ATHLETES, proField, toAthlete } = await import('../src/roster.ts')
+  const { PRO } = await import('../src/sim.ts')
+  for (const a of ATHLETES) toAthlete(a) // throws on unknown gear
+  const base = ATHLETES[0]
+  assert.ok(toAthlete(base).cda < base.cda, 'aero gear lowers CdA')
+  const race = runRace(7, proField(base.id, 7), [], PRO)
+  for (const r of race.riders)
+    assert.ok(r.finishT - r.startT > 1.8 * 3600 && r.finishT - r.startT < 2.6 * 3600, `${r.athlete.name} pro bike ${r.finishT - r.startT}`)
+  const best = Math.min(...race.riders.map((r) => r.finishT - r.startT))
+  console.log(`pro field ${race.riders.length}, fastest bike ${(best / 3600).toFixed(2)} h, penalties ${race.riders.reduce((n, r) => n + r.penalties, 0)}`)
+}

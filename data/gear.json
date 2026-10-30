@@ -1,0 +1,22 @@
+{
+  "note": "Fictional brands. Effects are deltas against the athlete's base CdA and mass, rough estimates. Wetsuits and nutrition have no effect until the swim and fuel catalogue exist.",
+  "gear": [
+    {"id": "halvorsen-tempest", "slot": "bike", "brand": "Halvorsen", "model": "Tempest", "cdaDelta": -0.005, "massKg": 0},
+    {"id": "brisa-velocity", "slot": "bike", "brand": "Brisa", "model": "Velocity", "cdaDelta": -0.006, "massKg": 0.4},
+    {"id": "okumura-tt1", "slot": "bike", "brand": "Okumura", "model": "TT-1", "cdaDelta": -0.004, "massKg": 0.2},
+    {"id": "ferrovia-strada", "slot": "bike", "brand": "Ferrovia", "model": "Strada TT", "cdaDelta": -0.005, "massKg": 0.5},
+    {"id": "tidewater-x", "slot": "bike", "brand": "Tidewater", "model": "X-Tri", "cdaDelta": -0.004, "massKg": 0.6},
+    {"id": "fjell-disc", "slot": "wheels", "brand": "Fjell", "model": "Disc 2", "cdaDelta": -0.006, "massKg": 0.4},
+    {"id": "corvid-78", "slot": "wheels", "brand": "Corvid", "model": "78 Deep", "cdaDelta": -0.004, "massKg": 0},
+    {"id": "aurel-bullet", "slot": "helmet", "brand": "Aurel", "model": "Bullet", "cdaDelta": -0.006, "massKg": 0},
+    {"id": "stratos-tt", "slot": "helmet", "brand": "Stratos", "model": "TT Shell", "cdaDelta": -0.004, "massKg": 0},
+    {"id": "okumura-aero", "slot": "helmet", "brand": "Okumura", "model": "Aero Lid", "cdaDelta": -0.005, "massKg": 0},
+    {"id": "vela-carbon", "slot": "shoes", "brand": "Vela", "model": "Carbon 3", "runEconomy": 1.03},
+    {"id": "kinetik-plate", "slot": "shoes", "brand": "Kinetik", "model": "Plate Pro", "runEconomy": 1.025},
+    {"id": "riverstride-r", "slot": "shoes", "brand": "Riverstride", "model": "R-Race", "runEconomy": 1.02},
+    {"id": "tempolab-pro", "slot": "shoes", "brand": "Tempolab", "model": "Pro Racer", "runEconomy": 1.025},
+    {"id": "selkie-pro", "slot": "wetsuit", "brand": "Selkie", "model": "Pro"},
+    {"id": "marlin-flow", "slot": "wetsuit", "brand": "Marlin", "model": "Flow"},
+    {"id": "glyco-100", "slot": "nutrition", "brand": "Glyco", "model": "Gel 100"}
+  ]
+}
