@@ -33,7 +33,7 @@ const me = race.riders[0]
 const log: Input[] = []
 let pending: Omit<Input, 't'>[] = []
 const history: { x: number; power: number; w: number; glycogen: number }[] = []
-const stats = { inputs: 0, zoneEntries: 0, aidWindows: 0, refWarnings: 0, playS: 0, slowS: 0, eatenG: 0, distress: 0, exhausted: 0 }
+const stats = { inputs: 0, zoneEntries: 0, aidWindows: 0, playS: 0, slowS: 0, eatenG: 0, distress: 0, exhausted: 0 }
 let bonkKm = -1
 let started = false
 let paused = false
@@ -67,7 +67,7 @@ function input(type: Input['type'], value?: number) {
 const tactical = () =>
   (me.zoneS > 0 && (me.zoneS <= 4 || me.zoneS >= race.rules.passS - 7)) ||
   aidAt(me.x) > me.aidIdx ||
-  (nextAid() - me.x < 100 && nextAid() - me.x > 0)
+  (nextAid() < COURSE_M && nextAid() - me.x < 100 && nextAid() - me.x > 0)
 
 const nextAid = () => Math.ceil(me.x / AID_EVERY_M) * AID_EVERY_M
 
@@ -90,7 +90,6 @@ function tick() {
   }
   if (me.zoneS === 1) stats.zoneEntries++
   if (!inAid && aidAt(me.x) > me.aidIdx) stats.aidWindows++
-  if (me.zoneS === 10 && Math.abs(race.ref.x - me.x) < REF_SIGHT_M * 2) stats.refWarnings++
   if (me.penalties > before.penalties) toast(`Draft penalty: ${race.rules.penaltyS / 60} min in the box`, C.danger)
   if (me.distressS === DISTRESS_S) { stats.distress++; toast('Stomach trouble: easy for 2 min', C.danger) }
   if (me.exhausted && !before.exhausted) { stats.exhausted++; toast('Out of matches', C.danger) }
@@ -261,7 +260,8 @@ function draw() {
 function finish() {
   done = true
   const bikeH = (me.finishT - me.startT) / 3600
-  const myFuel = Math.min(90, stats.eatenG / bikeH)
+  const myFuel = Math.min(me.athlete.gutGph, stats.eatenG / bikeH)
+  const absorbHard = Math.round(me.athlete.gutGph * 0.7) // above 75% CP, see move() in sim.ts
   while (race.riders.some((r) => r.finishT < 0) && race.t < 6 * 3600) step(race)
   const totals = race.riders.map((r) => r.finishT - r.startT + estimateRun(r, r === me ? myFuel : (r.persona?.fuelGph ?? 60)).t)
   const run = estimateRun(me, myFuel)
@@ -269,7 +269,7 @@ function finish() {
   const replay = hashRace(runRace(SEED, entries(), log, PRO)) === hashRace(race)
   const min = stats.playS / 60
 
-  document.getElementById('debrief-title')!.textContent = `${place}th of ${FIELD}`
+  document.getElementById('debrief-title')!.textContent = `${ordinal(place)} of ${FIELD}`
   const rows: [string, string][] = [
     ['Bike', clock(me.finishT - me.startT)],
     ['Run (estimate)', `${clock(run.t)}${run.bonked ? ', bonked' : ''}`],
@@ -284,9 +284,9 @@ function finish() {
   document.getElementById('debrief-stats')!.innerHTML = rows.map(([k, v]) => `<dt class="label">${k}</dt><dd>${v}</dd>`).join('')
 
   const notes: string[] = []
-  if (bonkKm >= 0) notes.push(`You bonked at km ${bonkKm.toFixed(0)}: you ate ${Math.round(stats.eatenG / bikeH)} g/h, about 60 g/h holds at Tempo.`)
+  if (bonkKm >= 0) notes.push(`You bonked at km ${bonkKm.toFixed(0)}: you ate ${Math.round(stats.eatenG / bikeH)} g/h. At Tempo your gut absorbs up to ${absorbHard} g/h: eat close to that.`)
   else if (run.bonked) notes.push(`You bonked on the run: ${Math.round(me.glycogen)} g left at T2 was not enough.`)
-  if (stats.distress) notes.push(`Stomach trouble ${stats.distress}x: you ate faster than your gut absorbs (about 50 g/h above Tempo).`)
+  if (stats.distress) notes.push(`Stomach trouble ${stats.distress}x: you ate faster than your gut absorbs (about ${absorbHard} g/h at Tempo and above, ${me.athlete.gutGph} g/h when easier).`)
   if (stats.exhausted) notes.push(`Out of matches ${stats.exhausted}x: each time you were forced to recover.`)
   if (me.penalties) notes.push(`${me.penalties} draft penalty (${race.rules.penaltyS / 60} min each).`)
   if (!notes.length) notes.push('Clean race: no bonk, no stomach trouble, no penalty.')
@@ -327,11 +327,18 @@ function drawChart() {
 }
 
 // ---------- input ----------
+// Gear inputs are absolute, so start from the last queued one: two presses before a tick both count.
+function shiftGear(d: number) {
+  const queued = pending.findLast((i) => i.type === 'gear')?.value ?? me.gear
+  input('gear', Math.max(0, Math.min(4, queued + d)))
+}
+const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')}`
+
 const keys: Record<string, () => void> = {
-  w: () => input('gear', Math.min(4, me.gear + 1)),
-  arrowup: () => input('gear', Math.min(4, me.gear + 1)),
-  s: () => input('gear', Math.max(0, me.gear - 1)),
-  arrowdown: () => input('gear', Math.max(0, me.gear - 1)),
+  w: () => shiftGear(1),
+  arrowup: () => shiftGear(1),
+  s: () => shiftGear(-1),
+  arrowdown: () => shiftGear(-1),
   a: () => input('lane', 1),
   arrowleft: () => input('lane', 1),
   d: () => input('lane', 0),
@@ -379,6 +386,6 @@ document.getElementById('start')!.addEventListener('click', () => {
 document.getElementById('again')!.addEventListener('click', () => location.reload())
 
 // Debug hooks for automated play tests.
-Object.assign(window, { __ns: { race, me, stats, log } })
+Object.assign(window, { __ns: { race, me, stats, log, loop: () => ({ acc, tps, paused, done, started, countdownIn: countdownUntil - performance.now(), pending: pending.length }) } })
 
 requestAnimationFrame(frame)

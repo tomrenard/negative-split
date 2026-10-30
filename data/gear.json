@@ -9,7 +9,7 @@
     {"id": "fjell-disc", "slot": "wheels", "brand": "Fjell", "model": "Disc 2", "cdaDelta": -0.006, "massKg": 0.4},
     {"id": "corvid-78", "slot": "wheels", "brand": "Corvid", "model": "78 Deep", "cdaDelta": -0.004, "massKg": 0},
     {"id": "aurel-bullet", "slot": "helmet", "brand": "Aurel", "model": "Bullet", "cdaDelta": -0.006, "massKg": 0},
-    {"id": "stratos-tt", "slot": "helmet", "brand": "Stratos", "model": "TT Shell", "cdaDelta": -0.004, "massKg": 0},
+    {"id": "nimbra-tt", "slot": "helmet", "brand": "Nimbra", "model": "TT Shell", "cdaDelta": -0.004, "massKg": 0},
     {"id": "okumura-aero", "slot": "helmet", "brand": "Okumura", "model": "Aero Lid", "cdaDelta": -0.005, "massKg": 0},
     {"id": "vela-carbon", "slot": "shoes", "brand": "Vela", "model": "Carbon 3", "runEconomy": 1.03},
     {"id": "kinetik-plate", "slot": "shoes", "brand": "Kinetik", "model": "Plate Pro", "runEconomy": 1.025},

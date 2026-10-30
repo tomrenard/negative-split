@@ -1,34 +1,47 @@
 import { appendFileSync } from 'node:fs'
-import type { IncomingMessage } from 'node:http'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { defineConfig } from 'vite'
 import { fixtureHash } from './src/field.ts'
 
-const body = (req: IncomingMessage) =>
-  new Promise<string>((resolve) => {
-    let s = ''
-    req.on('data', (c) => (s += c))
-    req.on('end', () => resolve(s))
+const MAX_BODY = 16_384
+
+// POST-only JSON endpoint; bad requests get a 400 instead of crashing the dev server.
+const jsonRoute = (handle: (data: Record<string, unknown>, raw: string) => void) => (req: IncomingMessage, res: ServerResponse) => {
+  if (req.method !== 'POST') return void ((res.statusCode = 405), res.end())
+  let raw = ''
+  req.on('data', (c) => {
+    raw += c
+    if (raw.length > MAX_BODY) req.destroy()
   })
+  req.on('end', () => {
+    try {
+      handle(JSON.parse(raw), raw)
+    } catch {
+      res.statusCode = 400
+    }
+    res.end()
+  })
+}
 
 export default defineConfig({
-  server: { host: true }, // reachable from a phone on the same network, for perf.html
+  // Localhost only. `LAN=1 pnpm dev` opens it to the local network for phone perf tests.
+  server: { host: process.env.LAN ? true : 'localhost' },
   plugins: [
     {
       name: 'reports',
       configureServer(server) {
         const expected = fixtureHash()
-        server.middlewares.use('/report', async (req, res) => {
-          const { hash, ua } = JSON.parse(await body(req))
-          console.log(`${hash === expected ? 'MATCH' : 'MISMATCH'} ${hash} (node ${expected}) ${ua}`)
-          res.end()
-        })
-        server.middlewares.use('/perf-report', async (req, res) => {
-          const line = await body(req)
-          appendFileSync('perf-results.jsonl', `${line}\n`)
-          const r = JSON.parse(line)
-          console.log(`PERF ${r.verdict} | ${r.gpu} | ${r.screen}`)
-          res.end()
-        })
+        server.middlewares.use(
+          '/report',
+          jsonRoute(({ hash, ua }) => console.log(`${hash === expected ? 'MATCH' : 'MISMATCH'} ${hash} (node ${expected}) ${ua}`)),
+        )
+        server.middlewares.use(
+          '/perf-report',
+          jsonRoute((r, raw) => {
+            appendFileSync('perf-results.jsonl', `${raw.replace(/\n/g, ' ')}\n`)
+            console.log(`PERF ${r.verdict} | ${r.gpu} | ${r.screen}`)
+          }),
+        )
       },
     },
   ],

@@ -195,6 +195,8 @@ HTML and CSS overlay. The draft zone timer is a ring on the 3D rider, shown only
 
 - Manager loop: how deep contracts, transfers and sponsors go in v1.
 - Pro pass time under the 20 m rule: check the 2026 IRONMAN Competition Rules.
+- Before server replay of input logs: validate inputs (integer t >= 0, integer gear 0 to 4, rider in range).
+- Before a public deploy: self-host the font (Google Fonts sends visitor IPs to Google, a GDPR issue in the EU).
 
 - Onboarding: how a non-triathlete learns matches, fueling and the draft rule.
 - Difficulty: rival strength, assists, bonk harshness.

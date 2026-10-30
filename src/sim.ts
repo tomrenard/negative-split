@@ -269,7 +269,7 @@ function decide(race: Race, r: Rider, p: Persona) {
   r.gear = zoned
 }
 
-export const fade = (r: Rider) => 1 - (0.01 * Math.max(0, r.strain - STRAIN_FREE_KJ)) / STRAIN_KJ_PER_PCT
+const fade = (r: Rider) => 1 - (0.01 * Math.max(0, r.strain - STRAIN_FREE_KJ)) / STRAIN_KJ_PER_PCT
 
 function move(race: Race, r: Rider) {
   if (race.t < r.startT || r.finishT >= 0) return
@@ -314,7 +314,7 @@ function move(race: Race, r: Rider) {
   r.x = x
   if (r.x >= COURSE_M) {
     r.x = COURSE_M
-    r.finishT = race.t
+    r.finishT = race.t + 1 // the tick that crosses the line ends at t + 1
   }
 }
 

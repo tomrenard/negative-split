@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { DEFAULT_PLAYER, FIXTURE_INPUTS, PLAYER, field, fixtureHash } from '../src/field.ts'
 import {
-  type Entry, AGE_GROUP, BONK_FRAC, BONK_G, GEAR_NAMES, RECOVER, SURGE, TEMPO,
+  type Entry, AGE_GROUP, PRO, BONK_FRAC, BONK_G, GEAR_NAMES, RECOVER, SURGE, TEMPO,
   createRace, runRace, speedFor, step,
 } from '../src/sim.ts'
 
@@ -55,18 +55,22 @@ assert.equal(speedFor(400, -0.2, 80, 0.25), 25, 'speed cap')
 }
 
 // Draft zone: a rider stuck behind a slow rider gets a penalty near the referee, none when the referee is far.
-const stuck = (refFar: boolean) => {
-  const race = createRace(1, [solo({ startT: 0 }), solo({ startT: 3 })])
+const stuck = (refFar: boolean, rules = AGE_GROUP) => {
+  const race = createRace(1, [solo({ startT: 0 }), solo({ startT: 3 })], rules)
   race.riders[0].gear = RECOVER
   race.riders[1].gear = TEMPO
   for (let t = 0; t < 120; t++) {
     if (refFar) race.ref.x = -1e6
     step(race)
   }
-  return race.riders[1].penalties
+  return race.riders[1]
 }
-assert.ok(stuck(false) >= 1, 'penalty when the referee sees it')
-assert.equal(stuck(true), 0, 'no penalty when the referee is far')
+assert.ok(stuck(false).penalties >= 1, 'penalty when the referee sees it')
+assert.equal(stuck(true).penalties, 0, 'no penalty when the referee is far')
+{
+  const pro = stuck(false, PRO)
+  assert.ok(pro.penalties >= 1 && pro.penaltyS <= PRO.penaltyS, 'pro: penalty with the 2 min box')
+}
 
 // Full bike leg with the cast.
 {
@@ -103,7 +107,6 @@ console.log(`ok, fixture hash ${fixtureHash()}`)
 // Pro field: roster loads, gear applies, the 70.3 bike leg lands in a pro time range.
 {
   const { ATHLETES, proField, toAthlete } = await import('../src/roster.ts')
-  const { PRO } = await import('../src/sim.ts')
   for (const a of ATHLETES) toAthlete(a) // throws on unknown gear
   const base = ATHLETES[0]
   assert.ok(toAthlete(base).cda < base.cda, 'aero gear lowers CdA')
