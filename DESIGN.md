@@ -1,13 +1,14 @@
 # Negative Split: design
 
-A browser triathlon game about strategy. You are the athlete's brain, not their legs. You win by spending energy and food at the right time.
+A browser triathlon game about strategy, inspired by Pro Cycling Manager. You run a pro triathlon team. In races you give team orders and control your leader live. You win by spending energy and food at the right time.
 
 ## Format
 
 - Simulated race: 70.3 (1.9 km swim, 90 km bike, 21.1 km run).
 - Time compression: about 20x. One race takes about 14 min.
-- Rules: age group, no drafting on the bike.
-- Field: 100 riders, starts spread over 30 min, CP ±40 W. About 4 draft zone moments per minute of play.
+- Target rules: pro 70.3, no drafting. Pro draft zone 20 m, penalty 2 min (IRONMAN 2026). Pass time: not confirmed in the 2026 rules yet, use 25 s until checked.
+- Target field: a pro field of about 40 athletes, CP about 330 to 420 W.
+- Current prototype: age-group rules (12 m, 5 min) and 100 riders (starts over 30 min, CP ±40 W). Switch to pro numbers in the next sim pass.
 - Platforms: desktop and mobile (landscape only).
 
 ## Athlete model
@@ -67,7 +68,7 @@ Auto slow-mo: compression drops to 2x or 3x at tactical moments (pass, aid stati
 
 ### Bike
 
-- Draft zone: 12 m behind each rider.
+- Draft zone: 20 m behind each rider (pro). Age-group races would use 12 m.
 - Entering a zone starts a 25 s timer. Complete the pass or drop back.
 - When a rider passes you, you must drop out of their zone.
 - A referee moto patrols and shows on the minimap. A zone breach near the referee gives a penalty box stop.
@@ -108,12 +109,19 @@ Tells:
 - Kit, each with a trade-off: disc wheel (fast, bad in crosswind), aero helmet (fast, hotter), carbon-plate shoes (fast, more leg damage).
 - Course preview: climbs, wind, aid stations.
 
-## Season (light)
+## Team management (Pro Cycling Manager layer)
 
-- 6 races, then Worlds. Age group placing gives qualifying points.
-- Between races: pick one training focus (CP, W', durability, gut +10 g/h, swim technique).
-- Prize money buys kit.
-- Later: load points, fatigue, taper.
+- You manage a pro team: 3 to 6 athletes, each with an athlete model (CP, W', swim and run pace, gut, durability) and a profile (Fish, Diesel, Hammer, Closer...).
+- Season: a pro calendar of 70.3 races. Results give points, prize money and sponsor value.
+- Between races: training blocks per athlete (pick a focus), fatigue and form, contracts and transfers.
+- Gear: bikes, wheels, helmets, wetsuits, shoes, nutrition. Each item has stats and trade-offs (aero vs weight vs heat vs crosswind).
+- In a race: you control your leader live (gears, lane, food). Teammates follow orders you set (pace plan, fuel plan, aggression), and you can change orders during the race.
+
+### Athletes and brands
+
+- Athletes and gear brands use real pro names with one letter changed, and stats modelled on the real athlete or product.
+- All athletes, teams and gear live in an editable JSON database, so names are easy to change.
+- Risk: near-real names still point at real people and brands. Fine while private. Before any public release, check licensing or switch to fictional names.
 
 ## Online
 
@@ -183,6 +191,9 @@ HTML and CSS overlay. The draft zone timer is a ring on the 3D rider, shown only
 8. Season, daily race, ghosts.
 
 ## Open topics
+
+- Manager loop: how deep contracts, transfers and sponsors go in v1.
+- Pro pass time under the 20 m rule: check the 2026 IRONMAN Competition Rules.
 
 - Onboarding: how a non-triathlete learns matches, fueling and the draft rule.
 - Difficulty: rival strength, assists, bonk harshness.
