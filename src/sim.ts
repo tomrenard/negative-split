@@ -181,7 +181,7 @@ export function nearestAhead(race: Race, r: Rider, lane: number): Rider | null {
   return best
 }
 
-function aidAt(x: number): number {
+export function aidAt(x: number): number {
   const idx = Math.round(x / AID_EVERY_M)
   return idx >= 1 && idx * AID_EVERY_M < COURSE_M && Math.abs(x - idx * AID_EVERY_M) <= AID_WINDOW_M ? idx : 0
 }
@@ -366,4 +366,33 @@ export function hashRace(race: Race): string {
     for (let b = 0; b < 8; b++) h = Math.imul(h ^ view.getUint8(b), 0x01000193)
   }
   return (h >>> 0).toString(16).padStart(8, '0')
+}
+
+const RUN_M = 21_100
+const RUN_THRESHOLD_MS = 1000 / 255 // 4:15/km at CP 250 W
+const RUNNER_KG = 72
+
+// ponytail: run estimate until the run leg exists (build step 7). Flat course, 80% of threshold pace,
+// bike fade carries over, food passes through the gut at 70% capacity, same bonk and stomach rules.
+export function estimateRun(r: Rider, fuelGph: number): { t: number; bonked: boolean } {
+  const absorb = (r.athlete.gutGph * 0.7) / 3600
+  let g = r.glycogen
+  let stomach = r.stomach
+  let bonked = false
+  let x = 0
+  let t = 0
+  while (x < RUN_M) {
+    let frac = g < BONK_G ? BONK_FRAC : 0.8
+    if (g < BONK_G) bonked = true
+    if (stomach > STOMACH_OK_G) frac *= 1 - STOMACH_COST * (stomach - STOMACH_OK_G)
+    const v = RUN_THRESHOLD_MS * (r.athlete.cp / 250) * frac * fade(r)
+    const kcal = (RUNNER_KG * v) / 1000 // running costs about 1 kcal/kg/km
+    stomach += fuelGph / 3600
+    const a = Math.min(stomach, absorb)
+    stomach -= a
+    g = Math.max(0, g - (kcal * (0.2 + 0.75 * frac)) / 4 + a)
+    x += v
+    t++
+  }
+  return { t, bonked }
 }

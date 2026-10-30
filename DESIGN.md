@@ -7,7 +7,7 @@ A browser triathlon game about strategy. You are the athlete's brain, not their 
 - Simulated race: 70.3 (1.9 km swim, 90 km bike, 21.1 km run).
 - Time compression: about 20x. One race takes about 14 min.
 - Rules: age group, no drafting on the bike.
-- Field: 100 riders (enough draft zone moments, see sweep results).
+- Field: 100 riders, starts spread over 30 min, CP ±40 W. About 4 draft zone moments per minute of play.
 - Platforms: desktop and mobile (landscape only).
 
 ## Athlete model

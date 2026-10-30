@@ -22,19 +22,19 @@ export const RIVALS: Entry[] = [
   rival('The Rookie', 260, 20_000, 60, { plan: THRESHOLD, climbGear: SURGE, aggression: 0.7, fuelGph: 45, grabMiss: 0.3 }),
 ]
 
-export const DEFAULT_PLAYER: Entry = { athlete: PLAYER, persona: null, startT: 100, gels: 4, bottles: 2 }
+export const DEFAULT_PLAYER: Entry = { athlete: PLAYER, persona: null, startT: 900, gels: 4, bottles: 2 }
 
 // The player is always rider 0.
 export const field = (player: Entry = DEFAULT_PLAYER): Entry[] => [player, ...RIVALS]
 
-// A bigger field: the 5 rival types repeated with seeded CP and start time spread.
+// A bigger field: the 5 rival types repeated with seeded CP (±40 W, age-group spread) and starts over 30 min (rolling swim start).
 export function crowd(player: Entry, size: number, seed: number): Entry[] {
   const s = { rngState: seed }
   const entries = [player]
   for (let i = 1; i < size; i++) {
     const base = RIVALS[(i - 1) % RIVALS.length]
-    const cp = base.athlete.cp - 15 + Math.floor(rand(s) * 31)
-    entries.push({ ...base, athlete: { ...base.athlete, cp }, startT: Math.floor(rand(s) * 600) })
+    const cp = base.athlete.cp - 40 + Math.floor(rand(s) * 81)
+    entries.push({ ...base, athlete: { ...base.athlete, cp }, startT: Math.floor(rand(s) * 1800) })
   }
   return entries
 }

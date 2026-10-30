@@ -2,11 +2,92 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Determinism check</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Negative Split</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #e6e4df;
+        --ink: #141414;
+        --meta: #5f5e5a;
+        --accent: #ff5a00;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); overflow: hidden; }
+      body { font: 500 18px/1.2 'Barlow Condensed', Helvetica, sans-serif; touch-action: none; }
+      canvas { display: block; width: 100vw; height: 100vh; }
+      .overlay {
+        position: fixed; inset: 0; display: grid; place-items: center; padding: 16px;
+        background: color-mix(in srgb, var(--bg) 94%, transparent);
+      }
+      .overlay[hidden] { display: none; }
+      .card { max-width: 720px; width: 100%; max-height: 100%; overflow: auto; }
+      h1 { font-size: clamp(48px, 9vw, 96px); line-height: 0.9; letter-spacing: -0.02em; margin: 0 0 24px; text-transform: uppercase; }
+      .rule { border-top: 1px solid var(--ink); padding-top: 8px; margin-top: 16px; }
+      .label { font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--meta); }
+      kbd { font: inherit; border: 1px solid var(--ink); padding: 0 6px; }
+      dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 24px; margin: 8px 0 0; }
+      dd { margin: 0; }
+      button {
+        font: 700 20px/1 'Barlow Condensed', Helvetica, sans-serif; text-transform: uppercase;
+        background: var(--ink); color: var(--bg); border: 0; padding: 14px 24px; margin-top: 24px; cursor: pointer;
+      }
+      button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+      #debrief-chart { width: 100%; height: 180px; margin-top: 8px; }
+      .touch { position: fixed; bottom: 16px; display: none; gap: 8px; }
+      .touch button { margin: 0; padding: 18px 20px; }
+      @media (pointer: coarse) { .touch { display: flex; } }
+    </style>
   </head>
   <body>
-    <pre id="out">running…</pre>
-    <script type="module" src="/src/determinism.ts"></script>
+    <canvas id="game"></canvas>
+
+    <div class="touch" style="left: 16px">
+      <button data-input="gel">Gel</button>
+      <button data-input="drink">Drink</button>
+    </div>
+    <div class="touch" style="right: 16px">
+      <button data-input="grab-gel">Grab gel</button>
+      <button data-input="grab-bottle">Grab bottle</button>
+    </div>
+
+    <div class="overlay" id="intro">
+      <div class="card">
+        <h1>Negative Split</h1>
+        <p>90 km bike leg of a 70.3. You set the effort, the race runs at 20x and slows down when something happens. A run estimate follows.</p>
+        <div class="rule">
+          <div class="label">Controls</div>
+          <dl>
+            <dt><kbd>W</kbd> <kbd>S</kbd></dt><dd>Effort gear up / down (swipe up / down)</dd>
+            <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>Passing lane / keep right (swipe left / right)</dd>
+            <dt><kbd>E</kbd> <kbd>Q</kbd></dt><dd>Gel 25 g / bottle 40 g</dd>
+            <dt><kbd>1</kbd> <kbd>2</kbd></dt><dd>Grab a gel / bottle at an aid station</dd>
+            <dt><kbd>P</kbd></dt><dd>Pause</dd>
+          </dl>
+        </div>
+        <div class="rule">
+          <div class="label">Rules</div>
+          <p>12 m draft zone behind every rider. More than 25 s inside one while the referee is close: 5 min penalty. Above threshold you burn matches. Eat too little and you bonk; eat faster than your gut absorbs and you slow down.</p>
+        </div>
+        <button id="start">Start</button>
+      </div>
+    </div>
+
+    <div class="overlay" id="debrief" hidden>
+      <div class="card">
+        <h1 id="debrief-title">Finish</h1>
+        <dl id="debrief-stats"></dl>
+        <div class="rule">
+          <div class="label">Power, matches and true fuel over the bike</div>
+          <canvas id="debrief-chart"></canvas>
+        </div>
+        <div class="rule" id="debrief-notes"></div>
+        <button id="again">Race again</button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/play.ts"></script>
   </body>
 </html>

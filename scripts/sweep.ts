@@ -2,42 +2,11 @@
 // to find dominant strategies (design risk 2) and count draft-zone events (risk 1).
 import { DEFAULT_PLAYER, crowd } from '../src/field.ts'
 import {
-  type Persona, type Rider, BONK_FRAC, BONK_G, STOMACH_COST, STOMACH_OK_G, ENDURANCE, GEAR_NAMES, SURGE, TEMPO, THRESHOLD,
-  createRace, fade, step,
+  type Persona, ENDURANCE, GEAR_NAMES, SURGE, TEMPO, THRESHOLD, createRace, estimateRun, step,
 } from '../src/sim.ts'
 
 const SEEDS = [11, 22, 33, 44, 55, 66]
 const FIELD_SIZE = Number(process.argv[2] ?? 100)
-const RUN_M = 21_100
-const RUN_THRESHOLD_MS = 1000 / 255 // 4:15/km at CP 250 W
-const RUNNER_KG = 72
-
-// ponytail: run estimate until the run leg exists (build step 7). Flat course, 80% of threshold pace,
-// bike fade carries over, food passes through the gut at 70% capacity, same bonk and stomach rules.
-function runTime(r: Rider): { t: number; bonked: boolean } {
-  const p = r.persona as Persona
-  const absorb = (r.athlete.gutGph * 0.7) / 3600
-  let g = r.glycogen
-  let stomach = r.stomach
-  let bonked = false
-  let x = 0
-  let t = 0
-  while (x < RUN_M) {
-    let frac = g < BONK_G ? BONK_FRAC : 0.8
-    if (g < BONK_G) bonked = true
-    if (stomach > STOMACH_OK_G) frac *= 1 - STOMACH_COST * (stomach - STOMACH_OK_G)
-    const v = RUN_THRESHOLD_MS * (r.athlete.cp / 250) * frac * fade(r)
-    const kcal = (RUNNER_KG * v) / 1000 // running costs about 1 kcal/kg/km
-    stomach += p.fuelGph / 3600
-    const a = Math.min(stomach, absorb)
-    stomach -= a
-    g = Math.max(0, g - (kcal * (0.2 + 0.75 * frac)) / 4 + a)
-    x += v
-    t++
-  }
-  return { t, bonked }
-}
-
 type Row = { name: string; places: number[]; totals: number[]; bonks: number; penalties: number; zoneEntries: number }
 const strategies: Persona[] = []
 for (const plan of [ENDURANCE, TEMPO, THRESHOLD])
@@ -68,7 +37,7 @@ for (const seed of SEEDS)
       inZone = me.zoneS > 0
     }
     const totals = race.riders.map((r) => {
-      const run = runTime(r)
+      const run = estimateRun(r, (r.persona as Persona).fuelGph)
       if (r === me && run.bonked) rows[i].bonks++
       return r.finishT - r.startT + run.t
     })
@@ -113,4 +82,5 @@ const winners = SEEDS.map((_, k) => rows.reduce((best, r) => (r.totals[k] < best
 console.log(`\nBest strategy per seed: ${winners.join(' | ')}`)
 const entries = rows.reduce((a, r) => a + r.zoneEntries, 0)
 const pens = rows.reduce((a, r) => a + r.penalties, 0)
-console.log(`Player draft-zone entries: ${(entries / hours).toFixed(1)} per bike hour (${(entries / hours / 20).toFixed(2)} per minute of play at 20x), penalties ${pens} in ${rows.length * SEEDS.length} races`)
+// One bike hour is 3 min of play at 20x.
+console.log(`Player draft-zone entries: ${(entries / hours).toFixed(1)} per bike hour (${(entries / hours / 3).toFixed(1)} per minute of play at 20x), penalties ${pens} in ${rows.length * SEEDS.length} races`)
