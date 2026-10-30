@@ -37,6 +37,11 @@ let started = false
 let paused = false
 let done = false
 let acc = 0
+let tps = FAST
+// Positions before the last tick, so drawing can blend between ticks (smooth at 3x).
+const prevX = race.riders.map((r) => r.x)
+let prevRef = 0
+const lerp = (from: number, to: number) => from + (to - from) * acc
 let last = performance.now()
 let toasts: { text: string; until: number; color: string }[] = []
 
@@ -65,6 +70,8 @@ const tactical = () =>
 const nextAid = () => Math.ceil(me.x / AID_EVERY_M) * AID_EVERY_M
 
 function tick() {
+  for (const r of race.riders) prevX[r.id] = r.x
+  prevRef = race.ref.x
   const before = { gels: me.gels, bottles: me.bottles, penalties: me.penalties, aidIdx: me.aidIdx, exhausted: me.exhausted }
   const now = pending.map((i) => ({ ...i, t: race.t }))
   pending = []
@@ -95,7 +102,9 @@ function frame(now: number) {
   last = now
   if (started && !paused && !done) {
     const slow = race.t >= me.startT && tactical()
-    acc += dt * (race.t < me.startT ? WAITING : slow ? SLOW : FAST)
+    const target = race.t < me.startT ? WAITING : slow ? SLOW : FAST
+    tps += (target - tps) * Math.min(1, (dt / TEST_X) * 6) // ease speed changes over about 0.5 s
+    acc += dt * tps
     if (race.t >= me.startT) {
       stats.playS += dt
       if (slow) stats.slowS += dt
@@ -173,7 +182,8 @@ function draw() {
   const rH = Math.max(120, H * 0.36)
   const laneH = rH / 2
   const m = wide / VIEW_M
-  const rx = (x: number) => pad + wide * 0.6 + (x - me.x) * m
+  const meX = lerp(prevX[0], me.x)
+  const rx = (x: number) => pad + wide * 0.6 + (x - meX) * m
   const ry = (lane: number) => rTop + (lane ? laneH * 0.5 : laneH * 1.5)
   ctx.fillStyle = C.ink
   hline(rTop)
@@ -192,17 +202,18 @@ function draw() {
     if (!onCourse(race, r) || Math.abs(r.x - me.x) > VIEW_M) continue
     const y = ry(r.lane)
     ctx.fillStyle = r === zoneOf ? 'rgba(255,90,0,0.18)' : 'rgba(20,20,20,0.05)'
-    ctx.fillRect(rx(r.x - ZONE_M), y - laneH * 0.3, ZONE_M * m, laneH * 0.6)
+    const x = lerp(prevX[r.id], r.x)
+    ctx.fillRect(rx(x - ZONE_M), y - laneH * 0.3, ZONE_M * m, laneH * 0.6)
     ctx.fillStyle = r === me ? C.accent : C.ink
-    ctx.fillRect(rx(r.x) - 2 * m, y - 5, 2 * m, 10)
+    ctx.fillRect(rx(x) - 2 * m, y - 5, 2 * m, 10)
   }
-  if (Math.abs(race.ref.x - me.x) < VIEW_M) text('REF', rx(race.ref.x), rTop + rH + 18, 14, C.danger, 'center', 700)
+  if (Math.abs(race.ref.x - me.x) < VIEW_M) text('REF', rx(lerp(prevRef, race.ref.x)), rTop + rH + 18, 14, C.danger, 'center', 700)
   else text(`REF ${race.ref.x > me.x ? '→' : '←'} ${Math.round(Math.abs(race.ref.x - me.x))} m`, race.ref.x > me.x ? W - pad : pad, rTop + rH + 18, 14, C.meta, race.ref.x > me.x ? 'right' : 'left')
 
   if (me.penaltyS > 0) text(`PENALTY BOX  ${Math.ceil(me.penaltyS / 60)} min`, W / 2, rTop + rH / 2 + 10, 40, C.danger, 'center', 700)
   else if (me.zoneS > 0) {
     const refClose = Math.abs(race.ref.x - me.x) < REF_SIGHT_M * 2
-    text(`DRAFT ZONE ${me.zoneS} / ${ZONE_LIMIT_S} s${refClose ? '  ·  REF CLOSE' : ''}`, rx(me.x), ry(me.lane) - laneH * 0.4, 22, refClose ? C.danger : C.accent, 'center', 700)
+    text(`DRAFT ZONE ${me.zoneS} / ${ZONE_LIMIT_S} s${refClose ? '  ·  REF CLOSE' : ''}`, rx(meX), ry(me.lane) - laneH * 0.4, 22, refClose ? C.danger : C.accent, 'center', 700)
   }
   const aidAhead = nextAid() - me.x
   if (nextAid() < COURSE_M && aidAt(me.x) > me.aidIdx) text('AID STATION: 1 grab gel · 2 grab bottle', W / 2, rTop + rH + 44, 22, C.accent, 'center', 700)
