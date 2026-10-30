@@ -1,6 +1,6 @@
 import {
   type Athlete, type Entry, type Input, type Persona,
-  ENDURANCE, SURGE, TEMPO, THRESHOLD, hashRace, runRace,
+  ENDURANCE, SURGE, TEMPO, THRESHOLD, hashRace, rand, runRace,
 } from './sim.ts'
 
 export const PLAYER: Athlete = { name: 'You', cp: 250, wPrime: 20_000, mass: 80, cda: 0.25, gutGph: 75, glycogen: 450 }
@@ -26,6 +26,18 @@ export const DEFAULT_PLAYER: Entry = { athlete: PLAYER, persona: null, startT: 1
 
 // The player is always rider 0.
 export const field = (player: Entry = DEFAULT_PLAYER): Entry[] => [player, ...RIVALS]
+
+// A bigger field: the 5 rival types repeated with seeded CP and start time spread.
+export function crowd(player: Entry, size: number, seed: number): Entry[] {
+  const s = { rngState: seed }
+  const entries = [player]
+  for (let i = 1; i < size; i++) {
+    const base = RIVALS[(i - 1) % RIVALS.length]
+    const cp = base.athlete.cp - 15 + Math.floor(rand(s) * 31)
+    entries.push({ ...base, athlete: { ...base.athlete, cp }, startT: Math.floor(rand(s) * 600) })
+  }
+  return entries
+}
 
 // Shared by scripts/check.ts and the browser determinism page.
 export const FIXTURE_SEED = 20261030

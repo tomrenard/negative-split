@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "check": "node scripts/check.ts",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "sweep": "node scripts/sweep.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
