@@ -50,6 +50,8 @@ assert.equal(speedFor(400, -0.2, 80, 0.25), 25, 'speed cap')
   assert.equal(one.distressS, 0, 'one gel is fine')
   const four = runRace(1, [solo()], [0, 1, 2, 3].map(() => ({ t: 10, rider: 0, type: 'gel' as const })), 20).riders[0]
   assert.ok(four.distressS > 0 && four.power <= PLAYER.cp * 0.56, 'four gels cause distress')
+  const two = runRace(1, [solo()], [0, 1].map(() => ({ t: 10, rider: 0, type: 'gel' as const })), 20).riders[0]
+  assert.ok(two.distressS === 0 && two.power < PLAYER.cp * 0.8, 'a full stomach costs power')
 }
 
 // Draft zone: a rider stuck behind a slow rider gets a penalty near the referee, none when the referee is far.

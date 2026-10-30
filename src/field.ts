@@ -3,7 +3,7 @@ import {
   ENDURANCE, SURGE, TEMPO, THRESHOLD, hashRace, rand, runRace,
 } from './sim.ts'
 
-export const PLAYER: Athlete = { name: 'You', cp: 250, wPrime: 20_000, mass: 80, cda: 0.25, gutGph: 75, glycogen: 450 }
+export const PLAYER: Athlete = { name: 'You', cp: 250, wPrime: 20_000, mass: 80, cda: 0.25, gutGph: 75, glycogen: 500 }
 
 const rival = (name: string, cp: number, wPrime: number, startT: number, persona: Persona): Entry => ({
   athlete: { ...PLAYER, name, cp, wPrime },

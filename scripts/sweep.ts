@@ -2,32 +2,36 @@
 // to find dominant strategies (design risk 2) and count draft-zone events (risk 1).
 import { DEFAULT_PLAYER, crowd } from '../src/field.ts'
 import {
-  type Persona, type Rider, BONK_FRAC, BONK_G, DURABILITY_KJ, ENDURANCE, GEAR_NAMES, SURGE, TEMPO, THRESHOLD,
-  createRace, step,
+  type Persona, type Rider, BONK_FRAC, BONK_G, STOMACH_COST, STOMACH_OK_G, ENDURANCE, GEAR_NAMES, SURGE, TEMPO, THRESHOLD,
+  createRace, fade, step,
 } from '../src/sim.ts'
 
 const SEEDS = [11, 22, 33, 44, 55, 66]
-const FIELD_SIZE = Number(process.argv[2] ?? 30)
+const FIELD_SIZE = Number(process.argv[2] ?? 100)
 const RUN_M = 21_100
 const RUN_THRESHOLD_MS = 1000 / 255 // 4:15/km at CP 250 W
 const RUNNER_KG = 72
 
 // ponytail: run estimate until the run leg exists (build step 7). Flat course, 80% of threshold pace,
-// fade from bike kJ, bonk caps pace, intake at 70% of gut capacity.
+// bike fade carries over, food passes through the gut at 70% capacity, same bonk and stomach rules.
 function runTime(r: Rider): { t: number; bonked: boolean } {
   const p = r.persona as Persona
-  const fade = 1 - (0.01 * Math.max(0, r.kj - DURABILITY_KJ)) / 500
-  const intake = Math.min(p.fuelGph, r.athlete.gutGph * 0.7) / 3600
-  let g = r.glycogen + r.stomach
+  const absorb = (r.athlete.gutGph * 0.7) / 3600
+  let g = r.glycogen
+  let stomach = r.stomach
   let bonked = false
   let x = 0
   let t = 0
   while (x < RUN_M) {
-    const frac = g < BONK_G ? BONK_FRAC : 0.8
+    let frac = g < BONK_G ? BONK_FRAC : 0.8
     if (g < BONK_G) bonked = true
-    const v = RUN_THRESHOLD_MS * (r.athlete.cp / 250) * frac * fade
+    if (stomach > STOMACH_OK_G) frac *= 1 - STOMACH_COST * (stomach - STOMACH_OK_G)
+    const v = RUN_THRESHOLD_MS * (r.athlete.cp / 250) * frac * fade(r)
     const kcal = (RUNNER_KG * v) / 1000 // running costs about 1 kcal/kg/km
-    g = Math.max(0, g - (kcal * (0.2 + 0.75 * frac)) / 4 + intake)
+    stomach += p.fuelGph / 3600
+    const a = Math.min(stomach, absorb)
+    stomach -= a
+    g = Math.max(0, g - (kcal * (0.2 + 0.75 * frac)) / 4 + a)
     x += v
     t++
   }
@@ -38,7 +42,7 @@ type Row = { name: string; places: number[]; totals: number[]; bonks: number; pe
 const strategies: Persona[] = []
 for (const plan of [ENDURANCE, TEMPO, THRESHOLD])
   for (let climbGear = plan; climbGear <= SURGE; climbGear++)
-    for (const fuelGph of [30, 60, 90])
+    for (const fuelGph of [30, 45, 60, 75, 90])
       for (const aggression of [0.3, 0.9]) strategies.push({ plan, climbGear, aggression, fuelGph, grabMiss: 0 })
 
 const short = (g: number) => GEAR_NAMES[g].slice(0, 5)

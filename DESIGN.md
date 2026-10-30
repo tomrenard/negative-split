@@ -7,6 +7,7 @@ A browser triathlon game about strategy. You are the athlete's brain, not their 
 - Simulated race: 70.3 (1.9 km swim, 90 km bike, 21.1 km run).
 - Time compression: about 20x. One race takes about 14 min.
 - Rules: age group, no drafting on the bike.
+- Field: 100 riders (enough draft zone moments, see sweep results).
 - Platforms: desktop and mobile (landscape only).
 
 ## Athlete model
@@ -17,14 +18,14 @@ The player and the AI use the same model. All numbers are starting values for tu
 |---|---|---|
 | CP (threshold) | 250 W, 4:15/km, 1:35/100 m | Effort above CP drains matches. |
 | Matches (W') | 20 kJ | Skiba W'bal. Drains at (P - CP). Refills faster the further below CP you go. |
-| Glycogen | 450 g | Carb burn = kJ/h x carb fraction / 4. About 90 g/h at 65% CP, about 200 g/h at CP. |
-| Gut capacity | 75 g/h | Absorption is slower at high effort. Run multiplier: 0.7. Food arrives after about 15 min. |
-| Durability | -1% CP per 500 kJ above a set point | Late race fade. |
+| Glycogen | 500 g | Carb burn = kJ/h x carb fraction / 4. About 90 g/h at 65% CP, about 200 g/h at CP. |
+| Gut capacity | 75 g/h | Absorption x0.7 above 75% CP and on the run. Food waiting above 40 g costs 0.2% power per gram. |
+| Durability | Strain = kJ x (P/CP)^4. -1% CP per 50 strain kJ above 500 | Late race fade. Hard riding costs far more than steady riding. |
 
 Failure states:
 
 - Bonk (glycogen below 10%): effort capped at 55% CP until carbs arrive.
-- GI distress (gut queue above capacity): forced easy pace for 2 min (game time).
+- GI distress (stomach above 90 g): forced easy pace for 2 min (game time).
 - Matches empty: forced recovery pace until W' refills.
 
 Information shown to the player:

@@ -22,9 +22,13 @@ export const MAX_GELS = 6
 export const MAX_BOTTLES = 2
 export const BONK_G = 45
 export const BONK_FRAC = 0.55
+export const STOMACH_OK_G = 40 // above this, each gram waiting costs STOMACH_COST of power
+export const STOMACH_COST = 0.002
 export const DISTRESS_G = 90
 export const DISTRESS_S = 120
-export const DURABILITY_KJ = 1500
+// Durability: strain = kJ x (P/CP)^4, so hard riding tires you far more than steady riding.
+export const STRAIN_FREE_KJ = 500
+export const STRAIN_KJ_PER_PCT = 50
 const MIN_GAP_M = 1.5
 const AID_WINDOW_M = 30
 const MAX_DRAFT = 0.3
@@ -70,6 +74,7 @@ export type Rider = {
   glycogen: number
   stomach: number
   kj: number
+  strain: number
   gels: number
   bottles: number
   lastEatT: number
@@ -147,6 +152,7 @@ export function createRace(seed: number, entries: Entry[]): Race {
       glycogen: e.athlete.glycogen,
       stomach: 0,
       kj: 0,
+      strain: 0,
       gels: e.gels,
       bottles: e.bottles,
       lastEatT: 0,
@@ -227,7 +233,7 @@ function decide(race: Race, r: Rider, p: Persona) {
   if ((race.t + r.id) % 10 !== 0) return
 
   const a = r.athlete
-  if (race.t - r.lastEatT >= (3600 * GEL_G) / p.fuelGph && r.stomach < 30)
+  if (race.t - r.lastEatT >= (3600 * GEL_G) / p.fuelGph)
     applyInput(race, r, { type: r.gels > 0 ? 'gel' : 'drink' })
 
   let gear = gradeAt(race.course, r.x) > 0.04 ? p.climbGear : p.plan
@@ -250,12 +256,15 @@ function decide(race: Race, r: Rider, p: Persona) {
   r.gear = gear
 }
 
+export const fade = (r: Rider) => 1 - (0.01 * Math.max(0, r.strain - STRAIN_FREE_KJ)) / STRAIN_KJ_PER_PCT
+
 function move(race: Race, r: Rider) {
   if (race.t < r.startT || r.finishT >= 0) return
   const a = r.athlete
-  const cp = a.cp * (1 - (0.01 * Math.max(0, r.kj - DURABILITY_KJ)) / 500)
+  const cp = a.cp * fade(r)
   let frac = GEARS[r.exhausted || r.distressS > 0 ? RECOVER : r.gear]
   if (r.glycogen < BONK_G) frac = Math.min(frac, BONK_FRAC)
+  if (r.stomach > STOMACH_OK_G) frac *= 1 - STOMACH_COST * (r.stomach - STOMACH_OK_G)
   const p = r.penaltyS > 0 ? 0 : cp * frac
   r.power = p
 
@@ -270,6 +279,8 @@ function move(race: Race, r: Rider) {
   // 1 kJ of work burns about 1 kcal (24% efficiency cancels 4.184 kJ/kcal).
   const kj = p / 1000
   r.kj += kj
+  const f = p / a.cp
+  r.strain += kj * f * f * f * f
   r.glycogen = Math.max(0, r.glycogen - (kj * Math.min(1, 0.2 + (0.75 * p) / a.cp)) / 4)
   const absorbed = Math.min(r.stomach, (a.gutGph / 3600) * (p > 0.75 * a.cp ? 0.7 : 1))
   r.stomach -= absorbed
@@ -345,7 +356,7 @@ export function hashRace(race: Race): string {
   const nums = [race.t, race.rngState, race.ref.x, race.ref.target]
   for (const r of race.riders)
     nums.push(
-      r.x, r.lane, r.v, r.gear, r.power, r.w, r.glycogen, r.stomach, r.kj, r.gels, r.bottles,
+      r.x, r.lane, r.v, r.gear, r.power, r.w, r.glycogen, r.stomach, r.kj, r.strain, r.gels, r.bottles,
       r.lastEatT, r.aidIdx, r.zoneS, r.penaltyS, r.distressS, r.exhausted ? 1 : 0, r.penalties, r.finishT,
     )
   const view = new DataView(new ArrayBuffer(8))
